@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "updated": "2026-10-13T13:21:37Z",
+  "payment_address": "t3disq3aZz8K3RLZL9zfkpP2UWNVV3hq4vZ",
+  "price_flux": 10,
+  "specs": [
+    "cumulusvpnae",
+    "cumulusvpnat",
+    "cumulusvpnau",
+    "cumulusvpnbr",
+    "cumulusvpnca",
+    "cumulusvpnch",
+    "cumulusvpncz",
+    "cumulusvpnde",
+    "cumulusvpnes",
+    "cumulusvpnfi",
+    "cumulusvpnfr",
+    "cumulusvpngb",
+    "cumulusvpnhk",
+    "cumulusvpnin",
+    "cumulusvpnit",
+    "cumulusvpnjp",
+    "cumulusvpnkr",
+    "cumulusvpnmx",
+    "cumulusvpnmy",
+    "cumulusvpnnl",
+    "cumulusvpnpl",
+    "cumulusvpnru",
+    "cumulusvpnse",
+    "cumulusvpnsg",
+    "cumulusvpntlsde",
+    "cumulusvpnus",
+    "cumulusvpnza"
+  ],
+  "seed_gateways": [
+    {
+      "ip": "0.0.0.0",
+      "country": "DE",
+      "sign_pubkey": "REPLACE_GATEWAY_ED25519_PUBKEY_B64"
+    }
+  ],
+  "sign_pubkey": "1e+42nEpmdjf/cAHs+yE2E2iwmAADpWiLy1VMepsKKw=",
+  "sig": "MjyrrtUn0xKZcodEsCGgVi5ZY6trYLWm7D+lj+SH6bgwCOQkk9g5L7VqlGSnflPJXEEfmqcDOsI185vT996dCw=="
+}

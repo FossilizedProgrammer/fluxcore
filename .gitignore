@@ -1,0 +1,12 @@
+# Compiled binaries
+/fluxcore
+/fluxcore-cli
+/fluxcore.exe
+/fluxcore-cli.exe
+*.exe
+*.test
+*.out
+
+# Local build output
+/dist/
+/build/

@@ -1,0 +1,16 @@
+NOTICE
+======
+
+This software includes code derived from CumulusVPN
+(https://github.com/RunOnFlux/cumulusvpn)
+
+Original project: CumulusVPN
+License: MIT License
+Copyright (c) the original authors of CumulusVPN / RunOnFlux
+
+This is an independent derivative / reimplementation.
+It is not affiliated with, endorsed by, or connected to the original
+CumulusVPN project or RunOnFlux.
+
+The original CumulusVPN source code is available at:
+https://github.com/RunOnFlux/cumulusvpn
