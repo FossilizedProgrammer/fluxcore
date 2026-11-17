@@ -39,10 +39,10 @@ jobs:
           CGO_ENABLED: '0'
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -trimpath -ldflags="-s -w" -o "dist/fluxcore-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
+        run: go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME#v}" -o "dist/fluxcore-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: fluxcore-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true

@@ -28,8 +28,8 @@ This project is a derivative work based on the open-source CumulusVPN project
 ## ساخت
 
 ```bash
-git clone https://github.com/FossilizedProgrammer/fluxcore.git cumulus
-cd cumulus
+git clone https://github.com/FossilizedProgrammer/fluxcore.git
+cd fluxcore
 go build -o fluxcore .
 ```
 

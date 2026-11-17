@@ -10,7 +10,9 @@ import (
 	"time"
 )
 
-const version = "0.1.0"
+// version can be overridden at build time with
+// -ldflags "-X main.version=<tag>" so released binaries report their tag.
+var version = "0.1.1"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -56,7 +58,7 @@ func run(args []string) int {
 }
 
 func printUsage() {
-	fmt.Print(`Fluxcore CLI — local SOCKS5/HTTP proxy over the CumulusVPN fleet.
+	fmt.Print(`Fluxcore CLI — local SOCKS5/HTTP proxy over the Fluxcore fleet.
 No TUN device, no root, no system routes: apps opt in by pointing at the proxy.
 
 USAGE
