@@ -33,6 +33,17 @@ func listCommand(args []string) int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fluxcore: %v\n", err)
+		return 1
+	}
+	up, err := parseUpstream(cfg.Upstream)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fluxcore: %v\n", err)
+		return 2
+	}
+	configureHTTPClient(up)
 	gateways, err := discoverFleetFrom(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fluxcore: %v\n", err)

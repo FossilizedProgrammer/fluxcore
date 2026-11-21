@@ -30,9 +30,16 @@ type tlsBridge struct {
 	lastErr   error
 }
 
-func dialTLSBridge(ctx context.Context, serverAddr, sni string) (*tlsBridge, error) {
-	dialer := &net.Dialer{Timeout: 12 * time.Second}
-	raw, err := dialer.DialContext(ctx, "tcp", serverAddr)
+func dialTLSBridge(ctx context.Context, serverAddr, sni string, up *upstream) (*tlsBridge, error) {
+	var raw net.Conn
+	var err error
+	if up != nil {
+		// The relay is reached through the upstream proxy (SOCKS5 or CONNECT).
+		raw, err = up.dialContext(ctx, "tcp", serverAddr)
+	} else {
+		dialer := &net.Dialer{Timeout: 12 * time.Second}
+		raw, err = dialer.DialContext(ctx, "tcp", serverAddr)
+	}
 	if err != nil {
 		return nil, err
 	}

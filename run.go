@@ -25,10 +25,11 @@ type manager struct {
 	mu     sync.RWMutex
 	tunnel *Tunnel
 
-	cfg     Config
-	verbose bool
-	proxy   *proxyServer
-	fatal   chan struct{}
+	cfg      Config
+	verbose  bool
+	proxy    *proxyServer
+	upstream *upstream
+	fatal    chan struct{}
 
 	entry RouteEndpoint
 	exit  RouteEndpoint
@@ -58,6 +59,8 @@ type runOptions struct {
 	verbose     bool
 	noKill      bool
 	autoConnect bool
+	upstream    string
+	noUpstream  bool
 }
 
 func parseRunOptions(args []string, cfg Config) (runOptions, error) {
@@ -65,6 +68,7 @@ func parseRunOptions(args []string, cfg Config) (runOptions, error) {
 		listen: cfg.Listen, httpListen: cfg.HTTPListen,
 		country: cfg.Country, mode: cfg.TransportMode,
 		multihop: cfg.RouteStyle == "multihop", autoConnect: true,
+		upstream: cfg.Upstream,
 	}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -103,6 +107,10 @@ func parseRunOptions(args []string, cfg Config) (runOptions, error) {
 			o.noKill = true
 		case "--no-reconnect":
 			o.autoConnect = false
+		case "--upstream":
+			o.upstream, err = next()
+		case "--no-upstream":
+			o.noUpstream = true
 		default:
 			err = fmt.Errorf("unknown run flag %q", arg)
 		}
@@ -147,12 +155,24 @@ func runCommand(args []string) int {
 		return 1
 	}
 
+	upstreamValue := opts.upstream
+	if opts.noUpstream {
+		upstreamValue = ""
+	}
+	up, err := parseUpstream(upstreamValue)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fluxcore: %v\n", err)
+		return 2
+	}
+	configureHTTPClient(up)
+
 	cfg.Listen = opts.listen
 	cfg.HTTPListen = opts.httpListen
 	cfg.Country = opts.country
 	cfg.TransportMode = opts.mode
 	cfg.KillSwitch = !opts.noKill
 	cfg.AutoReconnect = opts.autoConnect
+	cfg.Upstream = upstreamValue
 	if opts.multihop {
 		cfg.RouteStyle = "multihop"
 		cfg.Entry = opts.entry
@@ -163,8 +183,8 @@ func runCommand(args []string) int {
 	}
 
 	split := compileSplit(cfg.Split, nil)
-	m := &manager{cfg: cfg, verbose: opts.verbose, fatal: make(chan struct{})}
-	proxy, err := newProxyServer(cfg.Listen, cfg.HTTPListen, m, split, cfg.KillSwitch, opts.verbose)
+	m := &manager{cfg: cfg, verbose: opts.verbose, upstream: up, fatal: make(chan struct{})}
+	proxy, err := newProxyServer(cfg.Listen, cfg.HTTPListen, m, split, up, cfg.KillSwitch, opts.verbose)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fluxcore: %v\n", err)
 		return 1
@@ -185,6 +205,9 @@ func runCommand(args []string) int {
 	}
 	fmt.Println(modeLine)
 	fmt.Printf("transport  %s\n", opts.mode)
+	if up != nil {
+		fmt.Printf("upstream   %s\n", up.display())
+	}
 	fmt.Println("no TUN, no root, no system routes: only apps pointed at these proxies use it")
 	fmt.Println()
 
@@ -568,7 +591,7 @@ func (m *manager) connectSingle(ctx context.Context, gw GatewayInfo) (*Tunnel, s
 				IP: stripHostPort(gw.IP), Port: tr.Port, PublicKey: enroll.ServerPubkey,
 				AssignedIP: enroll.AssignedIP, DNS: enroll.DNS,
 			},
-			Transport: tr, DNSChoice: m.cfg.DNS, Verbose: m.verbose,
+			Transport: tr, DNSChoice: m.cfg.DNS, Verbose: m.verbose, Upstream: m.upstream,
 		})
 		if err != nil {
 			lastErr = err
@@ -607,7 +630,7 @@ func (m *manager) connectMultihop(ctx context.Context, entryGW, exitGW GatewayIn
 				IP: stripHostPort(exitGW.IP), Port: wgPort, PublicKey: exitEnroll.ServerPubkey,
 				AssignedIP: exitEnroll.AssignedIP, DNS: exitEnroll.DNS,
 			},
-			Transport: tr, DNSChoice: m.cfg.DNS, Verbose: m.verbose,
+			Transport: tr, DNSChoice: m.cfg.DNS, Verbose: m.verbose, Upstream: m.upstream,
 		})
 		if err != nil {
 			lastErr = err

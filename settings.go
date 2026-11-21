@@ -36,6 +36,7 @@ type Config struct {
 	HTTPListen     string      `json:"httpListen"`
 	AutoReconnect  bool        `json:"autoReconnect"`
 	IdentityBackup bool        `json:"identityBackup"`
+	Upstream       string      `json:"upstream"` // proxy URL, empty means direct
 	Split          SplitPolicy `json:"split"`
 }
 
@@ -136,6 +137,7 @@ func (c *Config) normalize() {
 	if c.Favorites == nil {
 		c.Favorites = []string{}
 	}
+	c.Upstream = strings.TrimSpace(c.Upstream)
 	if p, err := normalizeSplitPolicy(c.Split); err == nil {
 		c.Split = p
 	} else {

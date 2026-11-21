@@ -11,6 +11,7 @@ This project is a derivative work based on the open-source CumulusVPN project
 - پروتکل‌ها: `wg` (WireGuard)، `awg` (AmneziaWG با obfuscation) و `wg-tls` (WireGuard داخل TLS).
 - **فقط پلن رایگان.** هیچ دستور پرداخت، ارتقا یا بررسی اشتراکی وجود ندارد.
 - پشتیبانی از SOCKS5 و HTTP روی دو پورت مستقل، split tunneling، مولتی‌هاپ، kill switch و اتصال مجدد خودکار.
+- **آپ‌استریم:** همهٔ اتصال‌های خود کلاینت (کشف، enroll، تونل و مسیرهای مستقیم) می‌توانند از یک پروکسی SOCKS5 یا HTTP بالادستی رد شوند؛ برای وقتی که دسترسی مستقیم به فلیت فیلتر است.
 
 ---
 
@@ -132,6 +133,8 @@ export ALL_PROXY=socks5h://127.0.0.1:1080
 | `--stealth` | ترجیح ترنسپورت مقاوم به DPI (`wg-tls` سپس `awg`) |
 | `--speed` | ترجیح WireGuard ساده |
 | `--auto` | انتخاب خودکار ترنسپورت (پیش‌فرض) |
+| `--upstream URL` | عبور کل ترافیک از پروکسی بالادستی: `socks5://user:pass@HOST:PORT` یا `http://HOST:PORT` |
+| `--no-upstream` | نادیده گرفتن آپ‌استریم ذخیره‌شده برای همین اجرا |
 | `-l, --listen ADDR` | آدرس SOCKS5 (فقط loopback، پیش‌فرض `127.0.0.1:1080`) |
 | `--http-listen ADDR` | آدرس HTTP (فقط loopback، پیش‌فرض `127.0.0.1:1081`) |
 | `--no-kill-switch` | در قطع تونل، درخواست‌ها مستقیم بروند (پیش‌فرض: رد شوند) |
@@ -202,6 +205,7 @@ export ALL_PROXY=socks5h://127.0.0.1:1080
 | `reconnect` | `on`/`off` |
 | `diversity` | `on`/`off` (در مولتی‌هاپ کشور entry و exit متفاوت باشد) |
 | `identity-backup` | `on`/`off` |
+| `upstream` | آدرس پروکسی بالادستی، یا `off` برای غیرفعال کردن |
 
 ### `identity`
 
@@ -287,6 +291,26 @@ split tunneling روی خود کلاینت ارزیابی می‌شود و گی�
 - هوپ ورودی نمی‌تواند `wg-tls` باشد؛ در این حالت پیام خطا داده می‌شود و ترنسپورت دیگری امتحان می‌شود.
 - با `config set diversity on` می‌توان الزام کرد کشور entry و exit متفاوت باشد.
 
+### آپ‌استریم (عبور از فیلترینگ)
+
+اگر دسترسی مستقیم به گیتوی‌ها فیلتر است، کلاینت را از یک پروکسی بالادستی (مثلاً xray/v2ray/nekoray روی لوکال) عبور دهید:
+
+```bash
+./fluxcore run --upstream socks5://127.0.0.1:10808
+./fluxcore run --upstream http://127.0.0.1:8080 --stealth
+
+# دائمی:
+./fluxcore config set upstream socks5://127.0.0.1:10808
+./fluxcore config set upstream off
+```
+
+- آپ‌استریم روی **همهٔ** اتصال‌های خود کلاینت اعمال می‌شود: کشف فلیت، `/v1/info`، enroll، خود تونل و مقصدهای split که «مستقیم» هستند. نام‌کاربری/رمز در URL پشتیبانی می‌شود.
+- **SOCKS5:** هم `CONNECT` (TCP) و هم `UDP ASSOCIATE`، بنابراین `wg`، `awg`، `wg-tls` و مولتی‌هاپ همه کار می‌کنند. پروکسی بالادستی باید UDP را قبول کند (xray/sing-box معمولاً با `udp: true`).
+- **HTTP/HTTPS:** فقط `CONNECT` (TCP)، پس `wg-tls` کار می‌کند؛ `wg`/`awg` خطا می‌دهند و در حالت `auto` خودکار به `wg-tls` سقوط می‌کنند. برای اطمینان از `--stealth` استفاده کنید.
+- با آپ‌استریم HTTP، مولتی‌هاپ ممکن نیست (هوپ ورودی UDP است) و با SOCKS5 ممکن است.
+- بدون `--upstream` (یا با `off`) رفتار قبلی است: اتصال مستقیم از سیستم.
+- `list` هم از آپ‌استریم ذخیره‌شده استفاده می‌کند.
+
 ### Kill switch و اتصال مجدد
 
 - پیش‌فرض: اگر تونل قطع شود، درخواست‌هایی که باید از تونل بروند **رد می‌شوند** (fail-closed).
@@ -330,7 +354,10 @@ split tunneling روی خود کلاینت ارزیابی می‌شود و گی�
 یکی از پورت‌های ۱۰۸۰/۱۰۸۱ اشغال است. با `--listen` و `--http-listen` دو پورت آزاد بدهید یا برنامه اشغال‌کننده را ببندید.
 
 **`no gateways found` / discovery شکست می‌خورد**
-اتصال اینترنت و خروجی UDP را بررسی کنید. کلاینت ابتدا از دایرکتوری امضاشده و کش محلی استفاده می‌کند؛ اگر شبکه فیلتر است، `--stealth` را امتحان کنید.
+اتصال اینترنت و خروجی UDP را بررسی کنید. کلاینت ابتدا از دایرکتوری امضاشده و کش محلی استفاده می‌کند؛ اگر شبکه فیلتر است، `--stealth` را امتحان کنید یا با `--upstream` از یک پروکسی بالادستی رد شوید.
+
+**با آپ‌استریم HTTP خطای «only carries TCP» می‌گیرم**
+پروکسی HTTP فقط TCP تونل می‌کند. یا `--stealth` (wg-tls) بدهید، یا آپ‌استریم را `socks5://` کنید.
 
 **`Stealth mode: this location offers no DPI-resistant transport`**
 آن گیت‌وی `awg`/`wg-tls` ندارد. کشور دیگری انتخاب کنید یا `--auto` بدهید.
@@ -373,6 +400,7 @@ git push origin v0.1.0
 | `run.go` | مدیر نشست، انتخاب مسیر، reconnect، وضعیت runtime |
 | `tunnel.go` | تونل WireGuard/AmneziaWG و مولتی‌هاپ |
 | `bridge.go` | پل UDP↔TLS برای `wg-tls` |
+| `upstream.go` | آپ‌استریم: SOCKS5/HTTP CONNECT، UDP ASSOCIATE و bind وایرگارد |
 | `proxy.go` | SOCKS5/HTTP، مسیریابی split، kill switch |
 | `api.go` | discovery از Flux، enroll، امضای پاسخ‌ها، DNS |
 | `countries.go` | گروه‌بندی کشور/شهر و اندازه‌گیری پینگ |

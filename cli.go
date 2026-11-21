@@ -12,7 +12,7 @@ import (
 
 // version can be overridden at build time with
 // -ldflags "-X main.version=<tag>" so released binaries report their tag.
-var version = "0.1.1"
+var version = "0.2.0"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -81,6 +81,9 @@ RUN FLAGS
       --stealth               prefer DPI-resistant transports (wg-tls/awg)
       --speed                 prefer plain WireGuard
       --auto                  let the client choose a transport
+      --upstream URL          dial everything through an upstream proxy
+                              (socks5:// or http://, default port if omitted)
+      --no-upstream           ignore the saved upstream for this run
   -l, --listen ADDR           SOCKS5 listener (loopback; default 127.0.0.1:1080)
       --http-listen ADDR      HTTP listener (loopback; default 127.0.0.1:1081)
       --no-kill-switch        allow direct fallback if the tunnel is down
@@ -208,6 +211,7 @@ func printConfig(cfg Config) {
 	fmt.Printf("auto reconnect  %v\n", cfg.AutoReconnect)
 	fmt.Printf("node diversity  %v\n", cfg.NodeDiversity)
 	fmt.Printf("identity backup %v\n", cfg.IdentityBackup)
+	fmt.Printf("upstream        %s\n", displayUpstream(cfg.Upstream))
 	fmt.Printf("split mode      %s\n", cfg.Split.Mode)
 	fmt.Printf("public key      %s\n", pub)
 	fmt.Printf("config file     %s\n", configLocationHint())
@@ -239,6 +243,8 @@ func configValue(cfg Config, key string) (string, bool) {
 		return fmt.Sprint(cfg.NodeDiversity), true
 	case "identity-backup":
 		return fmt.Sprint(cfg.IdentityBackup), true
+	case "upstream":
+		return cfg.Upstream, true
 	}
 	return "", false
 }
@@ -313,6 +319,17 @@ func configSet(cfg *Config, key, value string) error {
 			return err
 		}
 		cfg.IdentityBackup = v
+	case "upstream":
+		v := strings.TrimSpace(value)
+		if v == "" || strings.EqualFold(v, "off") || strings.EqualFold(v, "none") {
+			cfg.Upstream = ""
+			return nil
+		}
+		up, err := parseUpstream(v)
+		if err != nil {
+			return err
+		}
+		cfg.Upstream = up.proxyURL.String()
 	default:
 		return fmt.Errorf("unknown setting %q", key)
 	}

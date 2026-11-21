@@ -31,6 +31,7 @@ type proxyServer struct {
 	socksLn    net.Listener
 	httpLn     net.Listener
 	source     tunnelSource
+	upstream   *upstream
 	killSwitch bool
 	verbose    bool
 
@@ -38,7 +39,7 @@ type proxyServer struct {
 	split   *compiledSplit
 }
 
-func newProxyServer(socksListen, httpListen string, source tunnelSource, split *compiledSplit, killSwitch, verbose bool) (*proxyServer, error) {
+func newProxyServer(socksListen, httpListen string, source tunnelSource, split *compiledSplit, upstream *upstream, killSwitch, verbose bool) (*proxyServer, error) {
 	socksLn, err := net.Listen("tcp", socksListen)
 	if err != nil {
 		return nil, fmt.Errorf("listen for SOCKS5 on %s: %w", socksListen, err)
@@ -50,7 +51,7 @@ func newProxyServer(socksListen, httpListen string, source tunnelSource, split *
 	}
 	return &proxyServer{
 		socksLn: socksLn, httpLn: httpLn, source: source, split: split,
-		killSwitch: killSwitch, verbose: verbose,
+		upstream: upstream, killSwitch: killSwitch, verbose: verbose,
 	}, nil
 }
 
@@ -333,17 +334,13 @@ func (p *proxyServer) dial(ctx context.Context, host string, port uint16) (net.C
 	direct := split.direct(host, ip)
 
 	if direct {
-		d := &net.Dialer{Timeout: 15 * time.Second}
-		c, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(int(port))))
-		return c, true, err
+		return p.dialDirect(ctx, host, port)
 	}
 	if t == nil {
 		if p.killSwitch {
 			return nil, false, errTunnelDown
 		}
-		d := &net.Dialer{Timeout: 15 * time.Second}
-		c, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(int(port))))
-		return c, true, err
+		return p.dialDirect(ctx, host, port)
 	}
 	if !ip.IsValid() {
 		a, err := lookupInTunnel(t, host)
@@ -357,6 +354,20 @@ func (p *proxyServer) dial(ctx context.Context, host string, port uint16) (net.C
 		return nil, false, err
 	}
 	return c, false, nil
+}
+
+// dialDirect connects without the tunnel. With an upstream configured, even
+// split-tunnel "direct" destinations go through the proxy: when the local path
+// is filtered, a direct socket is exactly what does not work.
+func (p *proxyServer) dialDirect(ctx context.Context, host string, port uint16) (net.Conn, bool, error) {
+	addr := net.JoinHostPort(host, strconv.Itoa(int(port)))
+	if p.upstream != nil {
+		c, err := p.upstream.dialContext(ctx, "tcp", addr)
+		return c, true, err
+	}
+	d := &net.Dialer{Timeout: 15 * time.Second}
+	c, err := d.DialContext(ctx, "tcp", addr)
+	return c, true, err
 }
 
 // lookupInTunnel resolves a name with the gateway's DNS through the tunnel's

@@ -45,6 +45,7 @@ type tunnelOptions struct {
 	Transport  Transport
 	DNSChoice  string
 	Verbose    bool
+	Upstream   *upstream
 }
 
 // Tunnel owns one or two WireGuard devices plus the gVisor netstack that proxy
@@ -164,7 +165,7 @@ func startSingle(ctx context.Context, opts tunnelOptions, privHex string) (*Tunn
 		if sni == "" {
 			sni = gw.IP
 		}
-		bridge, err = dialTLSBridge(ctx, net.JoinHostPort(gw.IP, strconv.Itoa(gw.Port)), sni)
+		bridge, err = dialTLSBridge(ctx, net.JoinHostPort(gw.IP, strconv.Itoa(gw.Port)), sni, opts.Upstream)
 		if err != nil {
 			return nil, fmt.Errorf("wg-tls bridge: %w", err)
 		}
@@ -189,7 +190,26 @@ func startSingle(ctx context.Context, opts tunnelOptions, privHex string) (*Tunn
 		return nil, fmt.Errorf("netstack: %w", err)
 	}
 	drainPendingUp(tunDev)
-	dev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(logLevel(opts.Verbose), "wg "))
+	var bind conn.Bind = conn.NewDefaultBind()
+	if opts.Upstream != nil && opts.Transport.Type != "wg-tls" {
+		// WireGuard's own transport is UDP, which only a SOCKS5 upstream can
+		// relay. Returning an error here lets the caller fall through to wg-tls.
+		if !opts.Upstream.supportsUDP() {
+			if bridge != nil {
+				_ = bridge.Close()
+			}
+			return nil, fmt.Errorf("upstream %s only carries TCP: %s needs UDP — use --stealth (wg-tls) or a SOCKS5 upstream", opts.Upstream.kind, opts.Transport.Type)
+		}
+		gwAddr, err := netip.ParseAddr(gw.IP)
+		if err != nil {
+			if bridge != nil {
+				_ = bridge.Close()
+			}
+			return nil, fmt.Errorf("gateway address %q: %w", gw.IP, err)
+		}
+		bind = newProxyBind(opts.Upstream, netip.AddrPortFrom(gwAddr, uint16(gw.Port)))
+	}
+	dev := device.NewDevice(tunDev, bind, device.NewLogger(logLevel(opts.Verbose), "wg "))
 
 	cfg := fmt.Sprintf("private_key=%s\n", privHex) + obfs + fmt.Sprintf(
 		"public_key=%s\nendpoint=%s\nallowed_ip=0.0.0.0/0\nallowed_ip=::/0\npersistent_keepalive_interval=%d\n",
@@ -334,6 +354,9 @@ func startMultihop(ctx context.Context, opts tunnelOptions, privHex string) (*Tu
 	if opts.Transport.Type == "wg-tls" {
 		return nil, fmt.Errorf("multi-hop needs a UDP entry hop; %s cannot be the entry transport", opts.Transport.Type)
 	}
+	if opts.Upstream != nil && !opts.Upstream.supportsUDP() {
+		return nil, fmt.Errorf("multi-hop sends UDP to the entry hop, which upstream %s cannot relay — use a SOCKS5 upstream or single-hop", opts.Upstream.kind)
+	}
 	entry, exit := opts.Entry, *opts.Exit
 	entryHex, err := b64ToHex(entry.PublicKey)
 	if err != nil {
@@ -369,7 +392,16 @@ func startMultihop(ctx context.Context, opts tunnelOptions, privHex string) (*Tu
 		return nil, fmt.Errorf("outer netstack: %w", err)
 	}
 	drainPendingUp(outerTun)
-	outer := device.NewDevice(outerTun, conn.NewDefaultBind(), device.NewLogger(logLevel(opts.Verbose), "outer "))
+	var outerBind conn.Bind = conn.NewDefaultBind()
+	if opts.Upstream != nil {
+		entryAddr, err := netip.ParseAddr(entry.IP)
+		if err != nil {
+			outerTun.Close()
+			return nil, fmt.Errorf("entry gateway address %q: %w", entry.IP, err)
+		}
+		outerBind = newProxyBind(opts.Upstream, netip.AddrPortFrom(entryAddr, uint16(entry.Port)))
+	}
+	outer := device.NewDevice(outerTun, outerBind, device.NewLogger(logLevel(opts.Verbose), "outer "))
 	outerCfg := fmt.Sprintf("private_key=%s\n", privHex) + obfs + fmt.Sprintf(
 		"public_key=%s\nendpoint=%s\nallowed_ip=%s/32\npersistent_keepalive_interval=%d\n",
 		entryHex, net.JoinHostPort(entry.IP, strconv.Itoa(entry.Port)), exitAddr, keepaliveSeconds,
