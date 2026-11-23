@@ -113,7 +113,7 @@ export ALL_PROXY=socks5h://127.0.0.1:1080
 | دستور | کار |
 |---|---|
 | `fluxcore [run] [flags]` | بالا آوردن پروکسی (دستور پیش‌فرض) |
-| `fluxcore list [--locations] [--json] [--no-latency]` | فهرست کشورها یا شهرها با پینگ و بار |
+| `fluxcore list [--locations] [--json] [--no-latency] [--upstream URL]` | فهرست کشورها یا شهرها با پینگ و بار |
 | `fluxcore status` | وضعیت نشست در حال اجرا |
 | `fluxcore config [get KEY \| set KEY VALUE \| path]` | مشاهده/تغییر تنظیمات ذخیره‌شده |
 | `fluxcore identity [show \| recovery \| import KEY]` | کلید عمومی، کلید بازیابی، بازیابی هویت |

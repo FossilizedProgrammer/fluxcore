@@ -12,7 +12,7 @@ import (
 
 // version can be overridden at build time with
 // -ldflags "-X main.version=<tag>" so released binaries report their tag.
-var version = "0.2.0"
+var version = "0.2.1"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -64,6 +64,7 @@ No TUN device, no root, no system routes: apps opt in by pointing at the proxy.
 USAGE
   fluxcore [run] [flags]        start the proxy (default command)
   fluxcore list [--locations]   countries or cities, with latency
+                              (accepts --upstream URL / --no-upstream)
   fluxcore status               show the running session
   fluxcore config [get|set]     view or change saved settings
   fluxcore identity [...]       show keys, recovery key, import

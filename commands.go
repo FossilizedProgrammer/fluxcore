@@ -15,16 +15,30 @@ func listCommand(args []string) int {
 	locations := false
 	asJSON := false
 	noLatency := false
-	for _, a := range args {
-		switch a {
-		case "--locations", "--cities", "-L":
+	upstreamFlag := ""
+	noUpstream := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--locations" || a == "--cities" || a == "-L":
 			locations = true
-		case "--json":
+		case a == "--json":
 			asJSON = true
-		case "--no-latency", "--fast":
+		case a == "--no-latency" || a == "--fast":
 			noLatency = true
-		case "--countries":
+		case a == "--countries":
 			locations = false
+		case a == "--no-upstream":
+			noUpstream = true
+		case a == "--upstream":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "fluxcore: --upstream needs a URL")
+				return 2
+			}
+			i++
+			upstreamFlag = args[i]
+		case strings.HasPrefix(a, "--upstream="):
+			upstreamFlag = strings.TrimPrefix(a, "--upstream=")
 		default:
 			fmt.Fprintf(os.Stderr, "fluxcore: unknown list flag %q\n", a)
 			return 2
@@ -37,6 +51,12 @@ func listCommand(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fluxcore: %v\n", err)
 		return 1
+	}
+	if noUpstream {
+		cfg.Upstream = ""
+	}
+	if upstreamFlag != "" {
+		cfg.Upstream = upstreamFlag
 	}
 	up, err := parseUpstream(cfg.Upstream)
 	if err != nil {
